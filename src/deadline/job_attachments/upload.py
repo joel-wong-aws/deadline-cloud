@@ -271,9 +271,19 @@ class S3AssetUploader:
         local_manifest_file = Path(manifest_write_dir, input_manifest_folder_name, manifest_name)
         logger.info(f"Creating local manifest file: {local_manifest_file}\n")
         local_manifest_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(local_manifest_file, "w") as file:
-            file.write(manifest.encode())
-
+        try:
+            with open(local_manifest_file, "w") as file:
+                file.write(manifest.encode())
+        except FileNotFoundError:
+            manifest_file_path = str(local_manifest_file.absolute())
+            if len(manifest_file_path) >= 256:
+                raise RuntimeError(
+                    "Failed to save asset manifest. This usually occurs from exceeding the maximum path length. "
+                    + "Please reduce the length of your job name."
+                )
+            raise RuntimeError(
+                f"Failed to save asset manifest. Please check your permissions to write to {manifest_file_path}."
+            )
         return local_manifest_file
 
     def _write_local_manifest_s3_mapping(
