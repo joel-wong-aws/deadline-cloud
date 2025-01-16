@@ -139,6 +139,7 @@ def show_job_bundle_submitter(
             AssetReferences(),
         )
 
+        # save to job history dir
         save_yaml_or_json_to_file(
             bundle_dir=job_bundle_dir, filename="template", file_type=file_type, data=template
         )
@@ -150,6 +151,14 @@ def show_job_bundle_submitter(
         )
         save_yaml_or_json_to_file(
             bundle_dir=job_bundle_dir,
+            filename="parameter_values",
+            file_type=file_type,
+            data={"parameterValues": parameters_values},
+        )
+
+        # save parameter values to input job bundle dir for sticky settings
+        save_yaml_or_json_to_file(
+            bundle_dir=input_job_bundle_dir,
             filename="parameter_values",
             file_type=file_type,
             data={"parameterValues": parameters_values},
