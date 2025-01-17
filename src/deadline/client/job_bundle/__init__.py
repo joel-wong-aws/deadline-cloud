@@ -11,6 +11,7 @@ __all__ = [
 import datetime
 import glob
 import os
+import sys
 
 from ..config import get_setting
 from ._yaml import deadline_yaml_dump
@@ -34,10 +35,6 @@ def create_job_history_bundle_dir(submitter_name: str, job_name: str) -> str:
         char for char in submitter_name if char.isalnum() or char in " -_"
     )
 
-    # Clean the job_name's characters and truncate for the filename
-    job_name_cleaned = "".join(char for char in job_name if char.isalnum() or char in " -_")
-    job_name_cleaned = job_name_cleaned[:128]
-
     timestamp = datetime.datetime.now()
     month_tag = timestamp.strftime("%Y-%m")
     date_tag = timestamp.strftime("%Y-%m-%d")
@@ -53,8 +50,22 @@ def create_job_history_bundle_dir(submitter_name: str, job_name: str) -> str:
         latest_dir = existing_dirs[-1]
         number = int(os.path.basename(latest_dir)[len(date_tag) + 1 :].split("-", 1)[0]) + 1
 
-    result = os.path.join(
-        month_dir, f"{date_tag}-{number:02}-{submitter_name_cleaned}-{job_name_cleaned}"
-    )
+    job_dir_prefix = f"{date_tag}-{number:02}-{submitter_name_cleaned}-"
+
+    max_job_name_prefix = 128  # max job name from OpenJD spec
+
+    # max path length - manifest file name
+    # 256 - len("\manifests\d2b2c3102af5a862db950a2e30255429_input")
+    # = 207
+    if sys.platform in ["win32", "cygwin"]:
+        max_job_name_prefix = min(
+            207 - len(os.path.abspath(os.path.join(month_dir, job_dir_prefix))), max_job_name_prefix
+        )
+
+    # Clean the job_name's characters and truncate for the filename
+    job_name_cleaned = "".join(char for char in job_name if char.isalnum() or char in " -_")
+    job_name_cleaned = job_name_cleaned[:max_job_name_prefix]
+
+    result = os.path.join(month_dir, f"{job_dir_prefix}{job_name_cleaned}")
     os.makedirs(result)
     return result

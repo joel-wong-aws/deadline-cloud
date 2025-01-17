@@ -417,7 +417,8 @@ class SubmitJobToDeadlineDialog(QDialog):
             deadline = api.get_boto3_client("deadline")
 
             self.job_history_bundle_dir = create_job_history_bundle_dir(
-                self.submitter_name, settings.name
+                self.submitter_name,
+                settings.name,
             )
 
             if self.show_host_requirements_tab:
