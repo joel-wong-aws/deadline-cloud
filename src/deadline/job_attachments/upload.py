@@ -862,18 +862,25 @@ class S3AssetManager:
             paths: list[base_manifest.BaseManifestPath] = []
 
             print(f"About to hash paths: {input_paths}")
-
-            for path in input_paths:
-                (file_status, file_size, path_to_put_in_manifest) = self._process_input_path(path, root_path, hash_cache, progress_tracker)
-                paths.append(path_to_put_in_manifest)
-                if progress_tracker:
-                    print("Reporting progress")
-                    if file_status == FileStatus.NEW or file_status == FileStatus.MODIFIED:
-                        progress_tracker.increase_processed(1, file_size)
-                    else:
-                        progress_tracker.increase_skipped(1, file_size)
-                    progress_tracker.report_progress()
-                    print("Progress successfully reported")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {
+                    executor.submit(
+                        self._process_input_path, path, root_path, hash_cache, progress_tracker
+                    ): path
+                    for path in input_paths
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    (file_status, file_size, path_to_put_in_manifest) = future.result()
+                    paths.append(path_to_put_in_manifest)
+                    print(f"Path hashed: {path_to_put_in_manifest}")
+                    if progress_tracker:
+                        print("Reporting progress")
+                        if file_status == FileStatus.NEW or file_status == FileStatus.MODIFIED:
+                            progress_tracker.increase_processed(1, file_size)
+                        else:
+                            progress_tracker.increase_skipped(1, file_size)
+                        progress_tracker.report_progress()
+                        print("Progress successfully reported")
 
             print(f"All paths successfully hashed: {input_paths}")
 
