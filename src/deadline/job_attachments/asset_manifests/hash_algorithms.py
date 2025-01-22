@@ -33,11 +33,13 @@ def hash_file(file_path: str, hash_alg: HashAlgorithm) -> str:
         )
 
     with open(file_path, "rb") as file:
+        print(f"Reading file {file_path}")
         while True:
             chunk = file.read(io.DEFAULT_BUFFER_SIZE)
             if not chunk:
                 break
             hasher.update(chunk)
+        print("File fully read")
         return hasher.hexdigest()
 
 

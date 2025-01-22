@@ -269,7 +269,7 @@ class S3AssetUploader:
             input_manifest_folder_name = root_dir_name + "_" + input_manifest_folder_name
 
         local_manifest_file = Path(manifest_write_dir, input_manifest_folder_name, manifest_name)
-        logger.info(f"Creating local manifest file: {local_manifest_file}\n")
+        print(f"Creating local manifest file: {local_manifest_file}\n")
         local_manifest_file.parent.mkdir(parents=True, exist_ok=True)
         with open(local_manifest_file, "w") as file:
             file.write(manifest.encode())
@@ -409,13 +409,13 @@ class S3AssetUploader:
         file_size = local_path.resolve().stat().st_size
 
         if s3_check_cache.get_entry(s3_key=f"{s3_bucket}/{s3_upload_key}"):
-            logger.debug(
+            print(
                 f"skipping {local_path} because {s3_bucket}/{s3_upload_key} exists in the cache"
             )
             return (is_uploaded, file_size)
 
         if self.file_already_uploaded(s3_bucket, s3_upload_key):
-            logger.debug(
+            print(
                 f"skipping {local_path} because it has already been uploaded to s3://{s3_bucket}/{s3_upload_key}"
             )
         else:
@@ -552,7 +552,7 @@ class S3AssetUploader:
             elif sys.platform != "win32" and not os.path.islink(path):
                 # We are on a non-Windows system that does not support O_NOFOLLOW. When we encounter
                 # symbolic link, we cannot guarantee security here, so log a warning and reject the file.
-                logger.warning(
+                print(
                     f"Job Attachments does not support files referenced by symbolic links on this system ({sys.platform}). "
                     "Please refrain from using symbolic links in Job Attachment asset roots and use real files instead. "
                     f"The following file will be skipped: {path}."
@@ -575,7 +575,7 @@ class S3AssetUploader:
             with os.fdopen(fd, "rb", closefd=False) as file_obj:
                 yield file_obj
         except OSError as e:
-            logger.warning(f"Failed to open file. The following file will be skipped: {path}: {e}")
+            print(f"Failed to open file. The following file will be skipped: {path}: {e}")
             yield None
         finally:
             if fd is not None:
@@ -598,7 +598,7 @@ class S3AssetUploader:
         try:
             h = msvcrt.get_osfhandle(fd)
         except OSError as e:
-            logger.warning(f"Error resolving file descriptor ({fd}) to '{path}': {e}")
+            print(f"Error resolving file descriptor ({fd}) to '{path}': {e}")
             return False
 
         # Get the final path name using Win32 API GetFinalPathNameByHandleW
@@ -629,7 +629,7 @@ class S3AssetUploader:
                 # greater than the initial buffer length, it is the required buffer length to fit the
                 # path name. This branch uses the that value to create a new buffer, so this should
                 # never fail unless GetFinalPathNameByHandleW behavior has changed.
-                logger.error(
+                print(
                     "GetFinalPathNameByHandleW reported incorrect required buffer length. "
                     f"Rejecting file at '{path}'"
                 )
@@ -791,6 +791,7 @@ class S3AssetManager:
         update: bool = True,
     ) -> Tuple[FileStatus, int, base_manifest.BaseManifestPath]:
         # If it's cancelled, raise an AssetSyncCancelledError exception
+        print(f"Setting up to hash path {path}")
         if progress_tracker and not progress_tracker.continue_reporting:
             raise AssetSyncCancelledError(
                 "File hashing cancelled.", progress_tracker.get_summary_statistics()
@@ -806,14 +807,18 @@ class S3AssetManager:
         actual_modified_time = str(datetime.fromtimestamp(path.stat().st_mtime))
 
         entry: Optional[HashCacheEntry] = hash_cache.get_entry(full_path, hash_alg)
+        print(f"About to hash path {path}")
         if entry is not None:
+            print(f"File has been previously hashed")
             # If the file was modified, we need to rehash it
             if actual_modified_time != entry.last_modified_time:
+                print("File was modified since last time it was hashed, re-hashing")
                 entry.last_modified_time = actual_modified_time
                 entry.file_hash = hash_file(full_path, hash_alg)
                 entry.hash_algorithm = hash_alg
                 file_status = FileStatus.MODIFIED
         else:
+            print("File has not been previously hashed")
             entry = HashCacheEntry(
                 file_path=full_path,
                 hash_algorithm=hash_alg,
@@ -821,6 +826,7 @@ class S3AssetManager:
                 last_modified_time=actual_modified_time,
             )
             file_status = FileStatus.NEW
+        print("Hashing process completed")
 
         if file_status != FileStatus.UNCHANGED and update:
             hash_cache.put_entry(entry)
@@ -835,6 +841,8 @@ class S3AssetManager:
         # The asset manifest spec requires the mtime to be represented as an integer in microseconds.
         path_args["mtime"] = trunc(path.stat().st_mtime_ns // 1000)
         path_args["size"] = file_size
+
+        print(f"Successfully hashed path {path}")
 
         return (file_status, file_size, manifest_model.Path(**path_args))
 
@@ -853,22 +861,21 @@ class S3AssetManager:
         }:
             paths: list[base_manifest.BaseManifestPath] = []
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = {
-                    executor.submit(
-                        self._process_input_path, path, root_path, hash_cache, progress_tracker
-                    ): path
-                    for path in input_paths
-                }
-                for future in concurrent.futures.as_completed(futures):
-                    (file_status, file_size, path_to_put_in_manifest) = future.result()
-                    paths.append(path_to_put_in_manifest)
-                    if progress_tracker:
-                        if file_status == FileStatus.NEW or file_status == FileStatus.MODIFIED:
-                            progress_tracker.increase_processed(1, file_size)
-                        else:
-                            progress_tracker.increase_skipped(1, file_size)
-                        progress_tracker.report_progress()
+            print(f"About to hash paths: {input_paths}")
+
+            for path in input_paths:
+                (file_status, file_size, path_to_put_in_manifest) = self._process_input_path(path, root_path, hash_cache, progress_tracker)
+                paths.append(path_to_put_in_manifest)
+                if progress_tracker:
+                    print("Reporting progress")
+                    if file_status == FileStatus.NEW or file_status == FileStatus.MODIFIED:
+                        progress_tracker.increase_processed(1, file_size)
+                    else:
+                        progress_tracker.increase_skipped(1, file_size)
+                    progress_tracker.report_progress()
+                    print("Progress successfully reported")
+
+            print(f"All paths successfully hashed: {input_paths}")
 
             # Need to sort the list to keep it canonical
             paths.sort(key=lambda x: x.path, reverse=True)
@@ -920,7 +927,7 @@ class S3AssetManager:
                 if require_paths_exist:
                     missing_input_paths.add(abs_path)
                 else:
-                    logger.warning(
+                    print(
                         f"Input path '{_path}' resolving to '{abs_path}' does not exist. Adding to referenced paths."
                     )
                     referenced_paths.add(_path)
@@ -1067,7 +1074,7 @@ class S3AssetManager:
             for path in paths:
                 total_bytes += Path(path).resolve().stat().st_size
         except FileNotFoundError:
-            logger.warning(
+            print(
                 f"Skipping the input from total size calculation as it doesn't exist: {path}"
             )
         return total_bytes
@@ -1208,16 +1215,22 @@ class S3AssetManager:
             on_progress_callback=on_preparing_to_submit,
         )
 
+        print("About to start hashing asset groups")
+
         asset_root_manifests: list[AssetRootManifest] = []
         for group in asset_groups:
+            print(f"Hashing asset group {group}")
             # Might have output directories, but no inputs for this group
             asset_manifest: Optional[BaseAssetManifest] = None
             if group.inputs:
+                print(f"Asset group {group} has inputs")
                 # Create manifest, using local hash cache
                 with HashCache(hash_cache_dir) as hash_cache:
+                    print(f"Created hash cache for asset group {group}")
                     asset_manifest = self._create_manifest_file(
                         sorted(list(group.inputs)), group.root_path, hash_cache, progress_tracker
                     )
+                    print("Successfully created manifest in-memory")
 
             asset_root_manifests.append(
                 AssetRootManifest(
@@ -1227,6 +1240,8 @@ class S3AssetManager:
                     outputs=sorted(list(group.outputs)),
                 )
             )
+
+        print("Successfully added asset root manifest to job in-memory")
 
         progress_tracker.total_time = time.perf_counter() - start_time
 
@@ -1253,7 +1268,7 @@ class S3AssetManager:
         """
         # This is a programming error if the user did not construct the object with Farm and Queue IDs.
         if not self.farm_id or not self.queue_id:
-            logger.error("upload_assets: Farm or Fleet ID is missing.")
+            print("upload_assets: Farm or Fleet ID is missing.")
             raise JobAttachmentsError("upload_assets: Farm or Fleet ID is missing.")
 
         # Sets up progress tracker to report upload progress back to the caller.
@@ -1300,8 +1315,8 @@ class S3AssetManager:
 
             manifest_properties_list.append(manifest_properties)
 
-            logger.debug("Asset manifests - locations in S3:")
-            logger.debug(
+            print("Asset manifests - locations in S3:")
+            print(
                 "\n".join(
                     filter(
                         None,
