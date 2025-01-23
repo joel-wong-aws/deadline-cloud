@@ -105,7 +105,7 @@ def test_job_history_dir_truncation_from_job_name_with_129_chars(fresh_deadline_
     # Use a temporary directory for the job history
     if sys.platform in ["win32", "cygwin"]:
         # Windows has a long tmp dir path so it will truncate anyway - we only want to test job name truncation
-        tmp_parent_dir = "C:\ProgramData"
+        tmp_parent_dir = "C:\\ProgramData"
     else:
         tmp_parent_dir = None
     with tempfile.TemporaryDirectory(dir=tmp_parent_dir) as tmpdir, freeze_time(
@@ -124,6 +124,37 @@ def test_job_history_dir_truncation_from_job_name_with_129_chars(fresh_deadline_
             "2024-08-26-01-SubmitterFour-test1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234",
         )
         assert os.path.isdir(output_path)
+
+
+def test_job_history_dir_exceeds_256_characters(fresh_deadline_config):
+    # Use a temporary directory for the job history
+    with tempfile.TemporaryDirectory() as tmpdir, freeze_time("2023-11-12T13:14:15"):
+        tmpdir_path_length = len(os.path.abspath(tmpdir))
+        long_tmpdir = os.path.join(
+            tmpdir,
+            "dir" + "1" * (256 - tmpdir_path_length),
+        )
+        config.set_setting("settings.job_history_dir", long_tmpdir)
+
+        job_name_1_char = "a"
+
+        if sys.platform in ["win32", "cygwin"]:
+            with pytest.raises(RuntimeError, match="Job history directory is too long"):
+                job_bundle.create_job_history_bundle_dir(
+                    "SubmitterFive",
+                    job_name_1_char,
+                )
+        else:
+            output_path = job_bundle.create_job_history_bundle_dir(
+                "SubmitterFive",
+                job_name_1_char,
+            )
+            assert output_path == os.path.join(
+                long_tmpdir,
+                "2023-11",
+                "2023-11-12-01-SubmitterFive-a",
+            )
+            assert os.path.isdir(output_path)
 
 
 @pytest.mark.parametrize(

@@ -61,6 +61,10 @@ def create_job_history_bundle_dir(submitter_name: str, job_name: str) -> str:
         max_job_name_prefix = min(
             207 - len(os.path.abspath(os.path.join(month_dir, job_dir_prefix))), max_job_name_prefix
         )
+        if max_job_name_prefix < 1:
+            raise RuntimeError(
+                "Job history directory is too long. Please update your 'settings.job_history_dir' to a shorter path."
+            )
 
     # Clean the job_name's characters and truncate for the filename
     job_name_cleaned = "".join(char for char in job_name if char.isalnum() or char in " -_")
