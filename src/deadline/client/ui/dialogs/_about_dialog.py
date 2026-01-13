@@ -34,6 +34,7 @@ class _AboutDialog(QDialog):
 
     The dialog displays all of the following if available:
     - Submitter name
+    - Documentation link
     - Deadline Cloud library version
     - Submitter package name and version
     - Host application name and version
@@ -45,7 +46,7 @@ class _AboutDialog(QDialog):
 
     def __init__(self, submitter_info: SubmitterInfo, parent=None):
         """
-        Initialize the About dialog.
+        Initialize the About/Help dialog.
 
         Args:
             submitter_info: SubmitterInfo object containing submitter details
@@ -136,10 +137,8 @@ class _AboutDialog(QDialog):
         Returns:
             Formatted string suitable for copying and pasting
         """
-        lines = [
-            "AWS Deadline Cloud Submitter Information",
-            "=========================================",
-        ]
+        header = "AWS Deadline Cloud Submitter Information"
+        lines = [header, "=" * len(header)]
         lines.append(self._format_version_info())
         return "\n".join(lines)
 

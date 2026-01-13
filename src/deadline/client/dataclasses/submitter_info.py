@@ -59,6 +59,9 @@ class SubmitterInfo:
     submitter_package_version: Optional[str] = None
     """Version of the submitter package (optional)"""
 
+    documentation_link: Optional[str] = None
+    """Links to the documentation for this submitter (optional)"""
+
     host_application_name: Optional[str] = None
     """Name of the host application (optional, e.g., "Maya", "Blender")"""
 

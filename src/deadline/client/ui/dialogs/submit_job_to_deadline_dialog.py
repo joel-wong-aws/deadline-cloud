@@ -233,7 +233,7 @@ class SubmitJobToDeadlineDialog(QDialog):
         self.settings_button = QPushButton(tr("Settings..."))
         self.settings_button.clicked.connect(self.on_settings_button_clicked)
         self.button_box.addButton(self.settings_button, QDialogButtonBox.ResetRole)
-        self.about_button = QPushButton(tr("About") + "...")
+        self.about_button = QPushButton(tr("Help") if self.submitter_info.documentation_link else tr("About"))
         self.about_button.clicked.connect(self._on_about_button_clicked)
         self.button_box.addButton(self.about_button, QDialogButtonBox.HelpRole)
         self.submit_button = QPushButton(tr("Submit"))
@@ -404,7 +404,7 @@ class SubmitJobToDeadlineDialog(QDialog):
             self.refresh_deadline_settings()
 
     def _on_about_button_clicked(self):
-        """Show the About dialog with submitter information."""
+        """Show the About/Help dialog with submitter information."""
         try:
             dialog = _AboutDialog(self.submitter_info, parent=self)
             dialog.exec_()
@@ -413,7 +413,7 @@ class SubmitJobToDeadlineDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Error",
-                f"Failed to display About dialog: {str(e)}",
+                f"Failed to display About/Help dialog: {str(e)}",
             )
 
     def on_export_bundle(self):
